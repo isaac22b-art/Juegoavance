@@ -164,16 +164,12 @@
         const closeCartaBtn = document.getElementById('close-carta');
         const hint = document.getElementById('hint');
 
-        // Instanciamos el cargador de texturas oficial de Three.js
-        const cargadorTexturas = new THREE.TextureLoader();
-
         // --- CARGA DE TEXTURAS ---
-        // Ahora 'cielo' carga directamente tu archivo cielo.jpg
         const texturas = {
             madera: generarTexturaMadera(),
             pasto: generarTexturaPasto(),
             piedra: generarTexturaPiedras(),
-            cielo: cargadorTexturas.load('./cielo.jpg') 
+            cielo: generarTexturaCieloProc()
         };
 
         init();
@@ -475,7 +471,43 @@
             return tex;
         }
 
-        // La función antigua generarTexturaCielo() ha sido removida porque ahora cargamos una imagen directa.
+        function generarTexturaCieloProc() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512; 
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            
+            // Gradiente de cielo nocturno con tonos cálidos y azules
+            const gradient = ctx.createLinearGradient(0, 0, 0, 512);
+            gradient.addColorStop(0, '#0f1419');
+            gradient.addColorStop(0.3, '#1a2a4e');
+            gradient.addColorStop(0.6, '#16213e');
+            gradient.addColorStop(1, '#0d1b2a');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 512, 512);
+            
+            // Estrellas brillantes
+            ctx.fillStyle = '#ffffff';
+            for(let i = 0; i < 200; i++) {
+                const x = Math.random() * 512;
+                const y = Math.random() * 512;
+                const r = Math.random() * 1.5;
+                ctx.beginPath();
+                ctx.arc(x, y, r, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            // Estrellas pequeñas adicionales
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+            for(let i = 0; i < 150; i++) {
+                const x = Math.random() * 512;
+                const y = Math.random() * 512;
+                ctx.fillRect(x, y, 0.5, 0.5);
+            }
+            
+            const tex = new THREE.CanvasTexture(canvas);
+            return tex;
+        }
 
         // --- LÓGICA DE ACTUALIZACIÓN ---
 
