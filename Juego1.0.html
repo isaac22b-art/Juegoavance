@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Un lugar especial 🌸</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            width: 100%;
+            height: 100%;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #0b091a;
+        }
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+        }
+        #blocker {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(11, 9, 26, 0.85);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            text-align: center;
+            cursor: pointer;
+            z-index: 10;
+            transition: background 0.3s;
+        }
+        #instructions {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 40px;
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+        }
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 6px;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.6);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 5;
+        }
+        #carta-ui {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.8);
+            width: 85%;
+            max-width: 520px;
+            background: #fdfaf2;
+            padding: 45px;
+            border-radius: 8px;
+            box-shadow: 0 25px 60px rgba(0,0,0,0.6);
+            display: none;
+            z-index: 20;
+            opacity: 0;
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            border-left: 15px solid #d4a373;
+        }
+        #carta-ui.active {
+            display: block;
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+        }
+        #carta-text {
+            font-family: 'Georgia', serif;
+            font-size: 1.25rem;
+            line-height: 1.9;
+            color: #3d312a;
+            white-space: pre-line;
+        }
+        #close-carta {
+            margin-top: 30px;
+            background: #d4a373;
+            border: none;
+            padding: 12px 28px;
+            color: white;
+            cursor: pointer;
+            border-radius: 25px;
+            font-weight: bold;
+            font-size: 1rem;
+            transition: all 0.2s;
+            box-shadow: 0 5px 15px rgba(212, 163, 115, 0.4);
+        }
+        #close-carta:hover { 
+            background: #c39262;
+            transform: translateY(-2px);
+        }
+        #hint {
+            position: absolute;
+            bottom: 12%;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #fdfaf2;
+            background: rgba(43, 33, 24, 0.85);
+            padding: 12px 25px;
+            border-radius: 25px;
+            display: none;
+            font-size: 1.1rem;
+            z-index: 5;
+            pointer-events: none;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="blocker">
+        <div id="instructions">
+            <h1 style="font-family: Georgia, serif; color: #ffb7b2; margin-bottom: 10px;">Un lugar especial para Fernanda 🌸</h1>
+            <p style="font-size: 1.3rem; color: #faedcd; margin-top: 0;">Inspirado en nuestro rincón favorito</p>
+            <p style="font-size: 1.1rem; margin-bottom: 25px;">Haz clic en cualquier parte para entrar al mundo</p>
+            <p style="font-size: 0.9rem; color: #a3b18a;">Controles: Caminar con W, A, S, D | Mirar con el Mouse</p>
+        </div>
+    </div>
+
+    <div id="crosshair"></div>
+    <div id="hint">Presiona Clic para leer tu carta ✉️</div>
+
+    <div id="carta-ui">
+        <div id="carta-text">
+            Holaaa pipilabu 🌸
+
+            Quería construir un espacio que fuera solo nuestro, un mini mundo acogedor donde pudieras caminar y desconectarte un ratito de todo. Una casita con nuestra sala especial y un jardín japonés diseñado para ti. Ademas te prometi esta cartita y como si fuera ese dia: Feliz cumpleaños amorcito lindo la amo mucho se que la paso genial en su cumple y me alegro que todos la hayan hecho sentir querida, la quiero caletita. Estare actualizando este juego para mejorarlo jeje
+
+            Gracias por ser mi lugar seguro en el universo. La carta está en la piedra, pero mi amor por ti está en todos ladosh. Te amo muchísimo.
+        </div>
+        <button id="close-carta">Volver al mundo</button>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
+
+    <script>
+        let scene, camera, renderer, controls;
+        let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
+        let prevTime = performance.now();
+        const velocity = new THREE.Vector3();
+        const direction = new THREE.Vector3();
+        
+        let raycaster;
+        let piedraCarta;
+        let esCartaAbierta = false;
+        let particulasPetalos;
+
+        const blocker = document.getElementById('blocker');
+        const cartaUi = document.getElementById('carta-ui');
+        const closeCartaBtn = document.getElementById('close-carta');
+        const hint = document.getElementById('hint');
+
+        // Instanciamos el cargador de texturas oficial de Three.js
+        const cargadorTexturas = new THREE.TextureLoader();
+
+        // --- CARGA DE TEXTURAS ---
+        // Ahora 'cielo' carga directamente tu archivo cielo.jpg
+        const texturas = {
+            madera: generarTexturaMadera(),
+            pasto: generarTexturaPasto(),
+            piedra: generarTexturaPiedras(),
+            cielo: cargadorTexturas.load('cielo.jpg') 
+        };
+
+        init();
+        animate();
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0b091a);
+            scene.fog = new THREE.FogExp2(0x110e26, 0.025);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 2, -3); 
+
+            // --- ILUMINACIÓN CÁLIDA ---
+            const ambientLight = new THREE.AmbientLight(0xfff3e0, 0.5); 
+            scene.add(ambientLight);
+
+            const luzSala = new THREE.PointLight(0xff9e7d, 1.5, 15);
+            luzSala.position.set(0, 4, -7);
+            scene.add(luzSala);
+
+            const lunaLight = new THREE.DirectionalLight(0xaaccff, 0.4);
+            lunaLight.position.set(-10, 20, -25);
+            scene.add(lunaLight);
+
+            // Controles
+            controls = new THREE.PointerLockControls(camera, document.body);
+            blocker.addEventListener('click', () => { if(!esCartaAbierta) controls.lock(); });
+            controls.addEventListener('lock', () => { blocker.style.display = 'none'; });
+            controls.addEventListener('unlock', () => { if(!esCartaAbierta) blocker.style.display = 'flex'; });
+            scene.add(controls.getObject());
+
+            const onKeyDown = (e) => {
+                switch (e.code) {
+                    case 'KeyW': case 'ArrowUp': moveForward = true; break;
+                    case 'KeyS': case 'ArrowDown': moveBackward = true; break;
+                    case 'KeyA': case 'ArrowLeft': moveLeft = true; break;
+                    case 'KeyD': case 'ArrowRight': moveRight = true; break;
+                }
+            };
+            const onKeyUp = (e) => {
+                switch (e.code) {
+                    case 'KeyW': case 'ArrowUp': moveForward = false; break;
+                    case 'KeyS': case 'ArrowDown': moveBackward = false; break;
+                    case 'KeyA': case 'ArrowLeft': moveLeft = false; break;
+                    case 'KeyD': case 'ArrowRight': moveRight = false; break;
+                }
+            };
+            document.addEventListener('keydown', onKeyDown);
+            document.addEventListener('keyup', onKeyUp);
+
+            raycaster = new THREE.Raycaster();
+
+            // --- MUNDO EXTERIOR E INTERIOR ---
+            crearCieloEstrellado();
+            crearSuelos();
+            crearSalaEstructura();
+            crearMueblesEsteticos();
+            crearJardinJapones();
+            crearSistemaPetalos();
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            window.addEventListener('click', interactuar);
+            closeCartaBtn.addEventListener('click', cerrarCarta);
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function crearCieloEstrellado() {
+            const cieloGeo = new THREE.SphereGeometry(200, 32, 15);
+            const cieloMat = new THREE.MeshBasicMaterial({
+                map: texturas.cielo,
+                side: THREE.BackSide
+            });
+            const cielo = new THREE.Mesh(cieloGeo, cieloMat);
+            scene.add(cielo);
+        }
+
+        function crearSuelos() {
+            const sueloSalaGeo = new THREE.PlaneGeometry(16, 14);
+            const maderaMat = new THREE.MeshStandardMaterial({ 
+                map: texturas.madera, 
+                roughness: 0.5 
+            });
+            const sueloSala = new THREE.Mesh(sueloSalaGeo, maderaMat);
+            sueloSala.rotation.x = -Math.PI / 2;
+            sueloSala.position.set(0, 0, -7);
+            scene.add(sueloSala);
+
+            const sueloJardinGeo = new THREE.PlaneGeometry(50, 50);
+            const pastoMat = new THREE.MeshStandardMaterial({ 
+                map: texturas.pasto, 
+                roughness: 0.9 
+            });
+            texturas.pasto.repeat.set(8, 8);
+            const sueloJardin = new THREE.Mesh(sueloJardinGeo, pastoMat);
+            sueloJardin.rotation.x = -Math.PI / 2;
+            sueloJardin.position.set(0, -0.02, -38);
+            scene.add(sueloJardin);
+        }
+
+        function crearSalaEstructura() {
+            const paredMat = new THREE.MeshStandardMaterial({ color: 0xede0d4, roughness: 0.8 });
+            
+            const panelMaderaMat = new THREE.MeshStandardMaterial({ map: texturas.madera, roughness: 0.6 });
+            const panelTV = new THREE.Mesh(new THREE.PlaneGeometry(8, 5.5), panelMaderaMat);
+            panelTV.position.set(5.9, 2.75, -7);
+            panelTV.rotation.y = -Math.PI / 2; 
+            scene.add(panelTV);
+
+            const paredFondoIzq = new THREE.Mesh(new THREE.PlaneGeometry(4, 6), paredMat);
+            paredFondoIzq.position.set(-6, 3, -14);
+            scene.add(paredFondoIzq);
+
+            const paredFondoDer = new THREE.Mesh(new THREE.PlaneGeometry(4, 6), paredMat);
+            paredFondoDer.position.set(6, 3, -14);
+            scene.add(paredFondoDer);
+
+            const vigaSuperior = new THREE.Mesh(new THREE.PlaneGeometry(8, 1.5), paredMat);
+            vigaSuperior.position.set(0, 5.25, -14);
+            scene.add(vigaSuperior);
+
+            const paredIzq = new THREE.Mesh(new THREE.PlaneGeometry(14, 6), paredMat);
+            paredIzq.rotation.y = Math.PI / 2;
+            paredIzq.position.set(-8, 3, -7);
+            scene.add(paredIzq);
+
+            const paredDer = new THREE.Mesh(new THREE.PlaneGeometry(14, 6), paredMat);
+            paredDer.rotation.y = -Math.PI / 2;
+            paredDer.position.set(8, 3, -7);
+            scene.add(paredDer);
+
+            const techo = new THREE.Mesh(new THREE.PlaneGeometry(16, 14), new THREE.MeshStandardMaterial({ color: 0xf5ebe0 }));
+            techo.rotation.x = Math.PI / 2;
+            techo.position.set(0, 6, -7);
+            scene.add(techo);
+        }
+
+        function crearMueblesEsteticos() {
+            const maderaMueble = new THREE.MeshStandardMaterial({ map: texturas.madera, roughness: 0.4 });
+            const rackTV = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.7, 7), maderaMueble);
+            rackTV.position.set(5.5, 0.35, -7);
+            scene.add(rackTV);
+
+            const tv = new THREE.Mesh(new THREE.BoxGeometry(0.1, 2.5, 4.5), new THREE.MeshBasicMaterial({ color: 0x151515 }));
+            tv.position.set(5.8, 2.8, -7);
+            scene.add(tv);
+
+            const sofaMat = new THREE.MeshStandardMaterial({ color: 0xb7a38f, roughness: 0.9 }); 
+            const sofaBase = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.7, 6), sofaMat);
+            sofaBase.position.set(-5, 0.35, -7);
+            scene.add(sofaBase);
+            const sofaRespaldo = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1.4, 6), sofaMat);
+            sofaRespaldo.position.set(-5.9, 0.7, -7);
+            scene.add(sofaRespaldo);
+
+            const mesaCentro = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.1, 0.1, 20), maderaMueble);
+            mesaCentro.position.set(-1, 0.4, -7);
+            scene.add(mesaCentro);
+            const pataMesa = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.4, 8), maderaMueble);
+            pataMesa.position.set(-1, 0.2, -7);
+            scene.add(pataMesa);
+
+            const maceta = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.3, 0.8, 12), new THREE.MeshStandardMaterial({ color: 0xddb892 }));
+            maceta.position.set(-6.5, 0.4, -12.5);
+            scene.add(maceta);
+            const plantaMat = new THREE.MeshStandardMaterial({ color: 0x386641, roughness: 0.6 });
+            for(let i=0; i<5; i++) {
+                const hoja = new THREE.Mesh(new THREE.ConeGeometry(0.2, 2, 4), plantaMat);
+                hoja.position.set(-6.5, 1.5, -12.5);
+                hoja.rotation.set(0.3, i * 1.2, 0.4);
+                scene.add(hoja);
+            }
+        }
+
+        function crearJardinJapones() {
+            const piedraCaminoMat = new THREE.MeshStandardMaterial({ map: texturas.piedra, roughness: 0.8 });
+            texturas.piedra.repeat.set(1, 1);
+
+            for (let i = 0; i < 7; i++) {
+                const losa = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.05, 1.8), piedraCaminoMat);
+                const desvioX = Math.sin(i * 0.8) * 1.5;
+                losa.position.set(desvioX, 0.02, -17 - (i * 3.2));
+                losa.rotation.y = i * 0.3;
+                scene.add(losa);
+            }
+
+            const rocaGeo = new THREE.DodecahedronGeometry(1.3, 1);
+            piedraCarta = new THREE.Mesh(rocaGeo, piedraCaminoMat);
+            piedraCarta.position.set(1.5, 0.5, -38); 
+            piedraCarta.scale.set(1.4, 0.7, 1.1); 
+            piedraCarta.name = "piedra_carta";
+            scene.add(piedraCarta);
+
+            const sobre = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.04, 0.4), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+            sobre.position.set(1.5, 1.02, -38);
+            sobre.rotation.set(0.1, 0.5, 0);
+            scene.add(sobre);
+
+            const troncoMat = new THREE.MeshStandardMaterial({ color: 0x4a3b32, roughness: 0.9 });
+            const tronco = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.7, 6, 8), troncoMat);
+            tronco.position.set(1.5, 3, -43);
+            scene.add(tronco);
+
+            const hojasMat = new THREE.MeshStandardMaterial({ color: 0xffccd5, roughness: 0.7 });
+            const posicionesCopa = [
+                [1.5, 6, -43, 3],
+                [-0.5, 6.5, -42, 2],
+                [3, 5.8, -44, 2.2],
+                [1.5, 7.2, -41.5, 1.8]
+            ];
+            posicionesCopa.forEach(pos => {
+                const c = new THREE.Mesh(new THREE.SphereGeometry(pos[3], 8, 8), hojasMat);
+                c.position.set(pos[0], pos[1], pos[2]);
+                scene.add(c);
+            });
+
+            const bambuMat = new THREE.MeshStandardMaterial({ color: 0x606c38, roughness: 0.5 });
+            for(let i=0; i<35; i++){
+                const b = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.15, 6, 6), bambuMat);
+                const angulo = Math.random() * Math.PI * 2;
+                const radio = 18 + Math.random() * 6;
+                b.position.set(Math.cos(angulo) * radio, 3, -38 + Math.sin(angulo) * radio);
+                scene.add(b);
+            }
+        }
+
+        function crearSistemaPetalos() {
+            const conteo = 250;
+            const geo = new THREE.BufferGeometry();
+            const posiciones = new Float32Array(conteo * 3);
+
+            for (let i = 0; i < conteo * 3; i += 3) {
+                posiciones[i] = (Math.random() - 0.5) * 50;
+                posiciones[i + 1] = Math.random() * 12;
+                posiciones[i + 2] = -12 - Math.random() * 38;
+            }
+
+            geo.setAttribute('position', new THREE.BufferAttribute(posiciones, 3));
+            const mat = new THREE.PointsMaterial({
+                color: 0xffb7b2,
+                size: 0.3,
+                transparent: true,
+                opacity: 0.75
+            });
+
+            particulasPetalos = new THREE.Points(geo, mat);
+            scene.add(particulasPetalos);
+        }
+
+        // --- PROCEDIMIENTOS CREADORES DE TEXTURAS ---
+
+        function generarTexturaMadera() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256; canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#bc8a5f'; ctx.fillRect(0, 0, 256, 256);
+            ctx.fillStyle = '#a2693e';
+            for(let i=0; i<8; i++) {
+                ctx.fillRect(0, i * 32, 256, 4);
+                ctx.fillRect(Math.random()*256, i * 32, Math.random()*50, 2);
+            }
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping;
+            return tex;
+        }
+
+        function generarTexturaPasto() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256; canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#386641'; ctx.fillRect(0, 0, 256, 256);
+            for(let i=0; i<4000; i++) {
+                ctx.fillStyle = Math.random() > 0.5 ? '#6a994e' : '#2b4c34';
+                ctx.fillRect(Math.random()*256, Math.random()*256, 2, 4);
+            }
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping;
+            return tex;
+        }
+
+        function generarTexturaPiedras() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256; canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#6c757d'; ctx.fillRect(0, 0, 256, 256);
+            for(let i=0; i<150; i++) {
+                ctx.fillStyle = Math.random() > 0.5 ? '#495057' : '#adb5bd';
+                ctx.beginPath();
+                ctx.arc(Math.random()*256, Math.random()*256, Math.random()*12+5, 0, Math.PI*2);
+                ctx.fill();
+            }
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping;
+            return tex;
+        }
+
+        // La función antigua generarTexturaCielo() ha sido removida porque ahora cargamos una imagen directa.
+
+        // --- LÓGICA DE ACTUALIZACIÓN ---
+
+        function interactuar() {
+            if (!controls.isLocked || esCartaAbierta) return;
+            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+            const intersects = raycaster.intersectObject(piedraCarta);
+            if (intersects.length > 0 && intersects[0].distance < 5) {
+                esCartaAbierta = true;
+                controls.unlock();
+                cartaUi.classList.add('active');
+                hint.style.display = 'none';
+            }
+        }
+
+        function cerrarCarta() {
+            cartaUi.classList.remove('active');
+            setTimeout(() => {
+                esCartaAbierta = false;
+                controls.lock();
+            }, 100);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const time = performance.now();
+
+            if (controls.isLocked === true) {
+                const delta = (time - prevTime) / 1000;
+                velocity.x -= velocity.x * 10.0 * delta;
+                velocity.z -= velocity.z * 10.0 * delta;
+
+                direction.z = Number(moveForward) - Number(moveBackward);
+                direction.x = Number(moveRight) - Number(moveLeft);
+                direction.normalize();
+
+                if (moveForward || moveBackward) velocity.z -= direction.z * 35.0 * delta;
+                if (moveLeft || moveRight) velocity.x -= direction.x * 35.0 * delta;
+
+                controls.moveRight(-velocity.x * delta);
+                controls.moveForward(-velocity.z * delta);
+
+                if (camera.position.x > 7.2) camera.position.x = 7.2;
+                if (camera.position.x < -7.2) camera.position.x = -7.2;
+                if (camera.position.z > -0.5) camera.position.z = -0.5;
+
+                raycaster.setFromCamera(new THREE.Vector2(0,0), camera);
+                const intersects = raycaster.intersectObject(piedraCarta);
+                if(intersects.length > 0 && intersects[0].distance < 5) {
+                    hint.style.display = 'block';
+                } else {
+                    hint.style.display = 'none';
+                }
+            } else {
+                hint.style.display = 'none';
+            }
+
+            if (particulasPetalos) {
+                const posiciones = particulasPetalos.geometry.attributes.position.array;
+                for (let i = 1; i < posiciones.length; i += 3) {
+                    posiciones[i] -= 0.025;
+                    posiciones[i - 1] += Math.sin(time * 0.0015 + i) * 0.006;
+                    if (posiciones[i] < 0) posiciones[i] = 11; 
+                }
+                particulasPetalos.geometry.attributes.position.needsUpdate = true;
+            }
+
+            prevTime = time;
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+    </script>
+</body>
+</html>
